@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Luma"
+description = "A calm personal focus workspace for organizing today's priorities, tracking progress, and capturing ideas without the noise of a traditional task manager."
+version = "1.0.0"
+id = "artifacts/luma-focus"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22474
+
+[services.development]
+run = "pnpm --filter @workspace/luma-focus run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/luma-focus", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/luma-focus/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22474"
+BASE_PATH = "/"

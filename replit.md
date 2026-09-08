@@ -24,15 +24,16 @@ Mobile-first business intelligence and operations workspace for small and medium
 
 - `artifacts/luma-focus/src/App.tsx` — NEXORA AI product shell, routes, local demo interactions, and API-ready UI boundaries
 - `artifacts/luma-focus/src/index.css` — NEXORA AI visual tokens and shared styling
-- `artifacts/api-server` — shared API service, currently unchanged
-- `lib/api-spec/openapi.yaml` — API contract source of truth for future backend integration
+- `artifacts/api-server` — secure BFF for the NEXORA backend and the n8n orchestrator
+- `lib/api-spec/openapi.yaml` — API contract source of truth for the NEXORA integration
 
 ## Architecture decisions
 
-- The first release is frontend-only and explicitly labels local sample content as demonstration data.
+- The browser calls only same-origin `/api/nexora/*` endpoints. Private backend and n8n URLs/tokens stay on the API server.
+- The UI renders operational data only when the BFF confirms `source: live`; unavailable integrations render an explicit unavailable state.
 - High-impact actions are represented as approval requests; UI silence never implies approval.
 - The shell is mobile-first with the primary business areas exposed through Dashboard, IA, Clientes, Vendas, Finanças, and Mais.
-- Backend, n8n orchestration, tenant isolation, permissions, and audit persistence remain integration points rather than being recreated in the frontend.
+- The n8n workflow is called by `POST /api/nexora/intelligence`; orchestration is never implemented in the web artifact.
 
 ## Product
 
@@ -45,9 +46,9 @@ NEXORA AI gives business owners and managers an executive view of revenue, sales
 
 ## Gotchas
 
-- The visible app is a demonstration shell until real APIs are connected; do not present sample metrics as live company data.
+- Without the private integration variables, the visible app remains in an unavailable state; do not add sample metrics as a fallback.
 - Do not place credentials or API keys in the frontend.
-- Do not implement the n8n orchestrator inside the web artifact.
+- Configure `NEXORA_BACKEND_URL`, `NEXORA_BACKEND_TOKEN`, `N8N_ORCHESTRATOR_URL`, and `N8N_ORCHESTRATOR_TOKEN` only in the server environment.
 
 ## Pointers
 

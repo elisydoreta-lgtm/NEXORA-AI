@@ -5,7 +5,10 @@
  * Contrato público do BFF NEXORA para dados operacionais e inteligência.
  * OpenAPI spec version: 0.2.0
  */
+import type { QuestionInputContext } from './questionInputContext';
 
-export interface HealthStatus {
-  status: string;
+export interface QuestionInput {
+  /** @minLength 1 */
+  question: string;
+  context?: QuestionInputContext;
 }

@@ -5,7 +5,9 @@
  * Contrato público do BFF NEXORA para dados operacionais e inteligência.
  * OpenAPI spec version: 0.2.0
  */
+import type { AlertEnvelope } from './alertEnvelope';
 
-export interface HealthStatus {
-  status: string;
-}
+/**
+ * Alerta atualizado
+ */
+export type LiveAlertResponse = AlertEnvelope;

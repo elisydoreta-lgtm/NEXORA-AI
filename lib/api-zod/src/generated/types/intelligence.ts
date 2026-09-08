@@ -5,7 +5,9 @@
  * Contrato público do BFF NEXORA para dados operacionais e inteligência.
  * OpenAPI spec version: 0.2.0
  */
+import type { IntelligenceMetadata } from './intelligenceMetadata';
 
-export interface HealthStatus {
-  status: string;
+export interface Intelligence {
+  answer: string;
+  metadata?: IntelligenceMetadata;
 }

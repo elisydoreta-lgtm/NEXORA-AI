@@ -5,7 +5,12 @@
  * Contrato público do BFF NEXORA para dados operacionais e inteligência.
  * OpenAPI spec version: 0.2.0
  */
+import type { MetricTrend } from './metricTrend';
 
-export interface HealthStatus {
-  status: string;
+export interface Metric {
+  label: string;
+  value: string;
+  change: string;
+  trend?: MetricTrend;
+  note: string;
 }

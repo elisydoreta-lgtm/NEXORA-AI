@@ -2,21 +2,20 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 0.2.0
+  description: Contrato público do BFF NEXORA para dados operacionais e inteligência.
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: nexora
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +23,295 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /nexora/overview:
+    get:
+      operationId: getOverview
+      tags: [nexora]
+      responses:
+        "200": { $ref: "#/components/responses/LiveOverview" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /nexora/customers:
+    get:
+      operationId: listCustomers
+      tags: [nexora]
+      parameters:
+        - { $ref: "#/components/parameters/Search" }
+        - { $ref: "#/components/parameters/Status" }
+      responses:
+        "200": { $ref: "#/components/responses/LiveCustomers" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+    post:
+      operationId: createCustomer
+      tags: [nexora]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/CustomerInput" } }
+      responses:
+        "200": { $ref: "#/components/responses/LiveCustomer" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /nexora/sales:
+    get:
+      operationId: getSales
+      tags: [nexora]
+      parameters:
+        - { $ref: "#/components/parameters/Period" }
+        - { $ref: "#/components/parameters/OpenOnly" }
+      responses:
+        "200": { $ref: "#/components/responses/LiveSales" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /nexora/finance:
+    get:
+      operationId: getFinance
+      tags: [nexora]
+      parameters:
+        - { $ref: "#/components/parameters/Period" }
+        - { $ref: "#/components/parameters/FinanceTab" }
+      responses:
+        "200": { $ref: "#/components/responses/LiveFinance" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /nexora/stock:
+    get:
+      operationId: getStock
+      tags: [nexora]
+      responses:
+        "200": { $ref: "#/components/responses/LiveStock" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /nexora/stock/{id}/restock:
+    post:
+      operationId: requestRestock
+      tags: [nexora]
+      parameters:
+        - { $ref: "#/components/parameters/Id" }
+      responses:
+        "200": { $ref: "#/components/responses/LiveApproval" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /nexora/suppliers:
+    get:
+      operationId: listSuppliers
+      tags: [nexora]
+      responses:
+        "200": { $ref: "#/components/responses/LiveSuppliers" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /nexora/alerts:
+    get:
+      operationId: listAlerts
+      tags: [nexora]
+      responses:
+        "200": { $ref: "#/components/responses/LiveAlerts" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /nexora/alerts/{id}/acknowledge:
+    post:
+      operationId: acknowledgeAlert
+      tags: [nexora]
+      parameters:
+        - { $ref: "#/components/parameters/Id" }
+      responses:
+        "200": { $ref: "#/components/responses/LiveAlert" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /nexora/approvals:
+    get:
+      operationId: listApprovals
+      tags: [nexora]
+      responses:
+        "200": { $ref: "#/components/responses/LiveApprovals" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /nexora/approvals/{id}/decision:
+    post:
+      operationId: decideApproval
+      tags: [nexora]
+      parameters:
+        - { $ref: "#/components/parameters/Id" }
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/DecisionInput" } }
+      responses:
+        "200": { $ref: "#/components/responses/LiveApproval" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /nexora/intelligence:
+    post:
+      operationId: askIntelligence
+      tags: [nexora]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/QuestionInput" } }
+      responses:
+        "200": { $ref: "#/components/responses/LiveIntelligence" }
+        "503": { $ref: "#/components/responses/Unavailable" }
 components:
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: string } }
+    Search: { name: search, in: query, schema: { type: string } }
+    Status: { name: status, in: query, schema: { type: string } }
+    Period: { name: period, in: query, schema: { type: string, default: 30d } }
+    OpenOnly: { name: openOnly, in: query, schema: { type: boolean } }
+    FinanceTab: { name: tab, in: query, schema: { type: string } }
+  responses:
+    Unavailable:
+      description: Integração privada indisponível
+      content:
+        application/json: { schema: { $ref: "#/components/schemas/Error" } }
+    LiveOverview:
+      description: Dados reais do backend NEXORA
+      content: { application/json: { schema: { $ref: "#/components/schemas/OverviewEnvelope" } } }
+    LiveCustomers:
+      description: Clientes reais
+      content: { application/json: { schema: { $ref: "#/components/schemas/CustomersEnvelope" } } }
+    LiveCustomer:
+      description: Cliente real
+      content: { application/json: { schema: { $ref: "#/components/schemas/CustomerEnvelope" } } }
+    LiveSales:
+      description: Vendas reais
+      content: { application/json: { schema: { $ref: "#/components/schemas/SalesEnvelope" } } }
+    LiveFinance:
+      description: Finanças reais
+      content: { application/json: { schema: { $ref: "#/components/schemas/FinanceEnvelope" } } }
+    LiveStock:
+      description: Stock real
+      content: { application/json: { schema: { $ref: "#/components/schemas/StockEnvelope" } } }
+    LiveSuppliers:
+      description: Fornecedores reais
+      content: { application/json: { schema: { $ref: "#/components/schemas/SuppliersEnvelope" } } }
+    LiveAlerts:
+      description: Alertas reais
+      content: { application/json: { schema: { $ref: "#/components/schemas/AlertsEnvelope" } } }
+    LiveAlert:
+      description: Alerta atualizado
+      content: { application/json: { schema: { $ref: "#/components/schemas/AlertEnvelope" } } }
+    LiveApprovals:
+      description: Aprovações reais
+      content: { application/json: { schema: { $ref: "#/components/schemas/ApprovalsEnvelope" } } }
+    LiveApproval:
+      description: Aprovação atualizada
+      content: { application/json: { schema: { $ref: "#/components/schemas/ApprovalEnvelope" } } }
+    LiveIntelligence:
+      description: Resposta do Orquestrador Central de IA
+      content: { application/json: { schema: { $ref: "#/components/schemas/IntelligenceEnvelope" } } }
   schemas:
     HealthStatus:
       type: object
+      required: [status]
+      properties: { status: { type: string } }
+    Error:
+      type: object
+      required: [code, message]
       properties:
-        status:
-          type: string
-      required:
-        - status
-
+        code: { type: string }
+        message: { type: string }
+    Envelope:
+      type: object
+      required: [data, source, lastUpdated]
+      properties:
+        data: { type: object, additionalProperties: true }
+        source: { type: string, enum: [live] }
+        provider: { type: string }
+        lastUpdated: { type: string, format: date-time }
+    Metric:
+      type: object
+      required: [label, value, change, note]
+      properties:
+        label: { type: string }
+        value: { type: string }
+        change: { type: string }
+        trend: { type: string, enum: [up, down, neutral] }
+        note: { type: string }
+    Overview:
+      type: object
+      required: [company, metrics, revenue, summary, receivables, stockCritical, alerts]
+      properties:
+        company: { type: object, additionalProperties: { type: string } }
+        metrics: { type: array, items: { $ref: "#/components/schemas/Metric" } }
+        revenue: { type: array, items: { type: object, additionalProperties: true } }
+        summary: { type: object, additionalProperties: true }
+        receivables: { type: object, additionalProperties: true }
+        stockCritical: { type: object, additionalProperties: true }
+        alerts: { type: array, items: { type: object, additionalProperties: true } }
+    Customer:
+      type: object
+      required: [id, name, initials, status, opportunity, next]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        initials: { type: string }
+        status: { type: string }
+        opportunity: { type: number }
+        next: { type: string }
+        since: { type: string }
+    CustomerInput:
+      type: object
+      required: [name]
+      properties: { name: { type: string }, email: { type: string, format: email } }
+    Customers:
+      type: object
+      required: [items, total]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Customer" } }
+        total: { type: integer }
+    Sales:
+      type: object
+      additionalProperties: true
+    Finance:
+      type: object
+      additionalProperties: true
+    Stock:
+      type: object
+      additionalProperties: true
+    Suppliers:
+      type: object
+      additionalProperties: true
+    Alerts:
+      type: object
+      additionalProperties: true
+    Alert:
+      type: object
+      additionalProperties: true
+    Approval:
+      type: object
+      additionalProperties: true
+    Approvals:
+      type: object
+      additionalProperties: true
+    DecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approved, rejected] }
+        reason: { type: string }
+    QuestionInput:
+      type: object
+      required: [question]
+      properties:
+        question: { type: string, minLength: 1 }
+        context: { type: object, additionalProperties: true }
+    Intelligence:
+      type: object
+      required: [answer]
+      properties:
+        answer: { type: string }
+        metadata: { type: object, additionalProperties: true }
+    OverviewEnvelope:
+      allOf: [{ $ref: "#/components/schemas/Envelope" }]
+    CustomersEnvelope:
+      allOf: [{ $ref: "#/components/schemas/Envelope" }]
+    CustomerEnvelope:
+      allOf: [{ $ref: "#/components/schemas/Envelope" }]
+    SalesEnvelope:
+      allOf: [{ $ref: "#/components/schemas/Envelope" }]
+    FinanceEnvelope:
+      allOf: [{ $ref: "#/components/schemas/Envelope" }]
+    StockEnvelope:
+      allOf: [{ $ref: "#/components/schemas/Envelope" }]
+    SuppliersEnvelope:
+      allOf: [{ $ref: "#/components/schemas/Envelope" }]
+    AlertsEnvelope:
+      allOf: [{ $ref: "#/components/schemas/Envelope" }]
+    AlertEnvelope:
+      allOf: [{ $ref: "#/components/schemas/Envelope" }]
+    ApprovalsEnvelope:
+      allOf: [{ $ref: "#/components/schemas/Envelope" }]
+    ApprovalEnvelope:
+      allOf: [{ $ref: "#/components/schemas/Envelope" }]
+    IntelligenceEnvelope:
+      allOf: [{ $ref: "#/components/schemas/Envelope" }]

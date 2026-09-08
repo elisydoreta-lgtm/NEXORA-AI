@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type EnvelopeSource = typeof EnvelopeSource[keyof typeof EnvelopeSource];
+
+
+export const EnvelopeSource = {
+  live: 'live',
+} as const;

@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type MetricTrend = typeof MetricTrend[keyof typeof MetricTrend];
+
+
+export const MetricTrend = {
+  up: 'up',
+  down: 'down',
+  neutral: 'neutral',
+} as const;

@@ -1,6 +1,6 @@
-# [Project name]
+# NEXORA AI
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Mobile-first business intelligence and operations workspace for small and medium businesses, with executive metrics, AI insights, and human-approved actions.
 
 ## Run & Operate
 
@@ -22,23 +22,32 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/luma-focus/src/App.tsx` — NEXORA AI product shell, routes, local demo interactions, and API-ready UI boundaries
+- `artifacts/luma-focus/src/index.css` — NEXORA AI visual tokens and shared styling
+- `artifacts/api-server` — shared API service, currently unchanged
+- `lib/api-spec/openapi.yaml` — API contract source of truth for future backend integration
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The first release is frontend-only and explicitly labels local sample content as demonstration data.
+- High-impact actions are represented as approval requests; UI silence never implies approval.
+- The shell is mobile-first with the primary business areas exposed through Dashboard, IA, Clientes, Vendas, Finanças, and Mais.
+- Backend, n8n orchestration, tenant isolation, permissions, and audit persistence remain integration points rather than being recreated in the frontend.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+NEXORA AI gives business owners and managers an executive view of revenue, sales, finance, stock, customers, suppliers, alerts, and AI-generated recommendations. The NEXORA Intelligence surface explains business signals and routes material actions through explicit human approval.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Portuguese product copy for the current interface.
+- Professional, premium, trustworthy, business-first presentation.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The visible app is a demonstration shell until real APIs are connected; do not present sample metrics as live company data.
+- Do not place credentials or API keys in the frontend.
+- Do not implement the n8n orchestrator inside the web artifact.
 
 ## Pointers
 

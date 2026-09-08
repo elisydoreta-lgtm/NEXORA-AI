@@ -1,195 +1,269 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Check, ChevronRight, Circle, Feather, Lightbulb, ListTodo, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { Link, Route, Switch, useLocation } from 'wouter';
+import {
+  Activity, AlertCircle, ArrowDownRight, ArrowUpRight, BarChart3, Bell, Bot, Boxes,
+  BriefcaseBusiness, Building2, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign,
+  Clock3, CreditCard, FileCheck2, FileText, Filter, HelpCircle, Home, Inbox, LayoutGrid,
+  LogOut, Menu, MessageSquareText, MoreHorizontal, Package, Percent, Plus, RefreshCw, Search,
+  Send, Settings, ShieldCheck, ShoppingBag, Sparkles, Tag, TrendingUp, Truck, UserRound, Users,
+  WalletCards, X, Zap
+} from 'lucide-react';
 
-type View = 'focus' | 'ideas';
-type Priority = { id: string; text: string; done: boolean };
-type Idea = { id: string; text: string; createdAt: string };
+type PageKey = 'dashboard' | 'intelligence' | 'customers' | 'sales' | 'finance' | 'more';
+type Approval = { id: string; title: string; detail: string; amount: string; kind: string; status: 'pending' | 'approved' | 'rejected' };
+type ChatMessage = { from: 'user' | 'ai'; text: string; meta?: string };
 
-const starterPriorities: Priority[] = [
-  { id: 'p-1', text: 'Escrever a primeira página do projeto', done: false },
-  { id: 'p-2', text: 'Marcar aquele café com a Marina', done: false },
-  { id: 'p-3', text: 'Ler 20 páginas antes do almoço', done: true },
+const navItems: { key: PageKey; label: string; short: string; icon: typeof Home }[] = [
+  { key: 'dashboard', label: 'Dashboard', short: 'Início', icon: Home },
+  { key: 'intelligence', label: 'IA', short: 'IA', icon: Sparkles },
+  { key: 'customers', label: 'Clientes', short: 'Clientes', icon: Users },
+  { key: 'sales', label: 'Vendas', short: 'Vendas', icon: ShoppingBag },
+  { key: 'finance', label: 'Finanças', short: 'Finanças', icon: CircleDollarSign },
+  { key: 'more', label: 'Mais', short: 'Mais', icon: MoreHorizontal },
 ];
-const starterIdeas: Idea[] = [
-  { id: 'i-1', text: 'Uma coleção de pequenos rituais para dias mais leves.', createdAt: 'Hoje, 07:42' },
-  { id: 'i-2', text: 'Perguntar ao avô sobre a casa amarela da infância.', createdAt: 'Ontem, 18:16' },
+
+const approvalsSeed: Approval[] = [
+  { id: 'a-1', title: 'Pagamento a fornecedor', detail: 'Norte & Cia · vence hoje', amount: 'R$ 4.850,00', kind: 'Pagamento', status: 'pending' },
+  { id: 'a-2', title: 'Reposição de estoque', detail: '45 unidades · linha Essential', amount: 'R$ 2.160,00', kind: 'Compra', status: 'pending' },
+  { id: 'a-3', title: 'Lembrete de cobrança', detail: 'Mensagem para 3 clientes em atraso', amount: '3 contas', kind: 'Comunicação', status: 'pending' },
 ];
 
-function readStorage<T>(key: string, fallback: T): T {
-  try {
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) as T : fallback;
-  } catch {
-    return fallback;
-  }
+const messagesSeed: ChatMessage[] = [
+  { from: 'ai', text: 'Olá, Rafael. Sou a NEXORA Intelligence. Posso transformar os seus dados de negócio em decisões mais claras — sempre com a sua aprovação antes de qualquer ação.', meta: 'Prévia de IA · dados de demonstração' },
+];
+
+function formatCurrency(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
 
 function App() {
-  const [view, setView] = useState<View>('focus');
-  const [priorities, setPriorities] = useState<Priority[]>(() => readStorage('luma-priorities', starterPriorities));
-  const [ideas, setIdeas] = useState<Idea[]>(() => readStorage('luma-ideas', starterIdeas));
-  const [newPriority, setNewPriority] = useState('');
-  const [newIdea, setNewIdea] = useState('');
-  const [isAddingPriority, setIsAddingPriority] = useState(false);
-  const [isAddingIdea, setIsAddingIdea] = useState(false);
-  const [celebrating, setCelebrating] = useState<string | null>(null);
+  const [location, setLocation] = useLocation();
+  const [loggedIn, setLoggedIn] = useState(() => localStorage.getItem('nexora-demo-session') === 'true');
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const [approvals, setApprovals] = useState<Approval[]>(approvalsSeed);
+  const [toast, setToast] = useState('');
+  const page = (location === '/' ? 'dashboard' : location.slice(1)) as PageKey;
 
-  useEffect(() => localStorage.setItem('luma-priorities', JSON.stringify(priorities)), [priorities]);
-  useEffect(() => localStorage.setItem('luma-ideas', JSON.stringify(ideas)), [ideas]);
+  const handleLogin = () => { localStorage.setItem('nexora-demo-session', 'true'); setLoggedIn(true); setLocation('/'); };
+  const handleLogout = () => { localStorage.removeItem('nexora-demo-session'); setLoggedIn(false); setLocation('/login'); };
+  const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 2800); };
+  const decideApproval = (id: string, status: 'approved' | 'rejected') => {
+    setApprovals((items) => items.map((item) => item.id === id ? { ...item, status } : item));
+    notify(status === 'approved' ? 'Aprovação registada localmente (demo).' : 'Rejeição registada localmente (demo).');
+  };
 
-  const dateLabel = useMemo(() => new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date()), []);
-  const greeting = new Date().getHours() < 12 ? 'Bom dia' : new Date().getHours() < 18 ? 'Boa tarde' : 'Boa noite';
-  const completed = priorities.filter((item) => item.done).length;
-  const openPriorities = priorities.filter((item) => !item.done);
-
-  function addPriority(event: FormEvent) {
-    event.preventDefault();
-    const text = newPriority.trim();
-    if (!text) return;
-    setPriorities((items) => [...items, { id: `p-${Date.now()}`, text, done: false }]);
-    setNewPriority('');
-    setIsAddingPriority(false);
-  }
-
-  function togglePriority(id: string) {
-    setPriorities((items) => items.map((item) => item.id === id ? { ...item, done: !item.done } : item));
-    setCelebrating(id);
-    window.setTimeout(() => setCelebrating(null), 500);
-  }
-
-  function addIdea(event: FormEvent) {
-    event.preventDefault();
-    const text = newIdea.trim();
-    if (!text) return;
-    setIdeas((items) => [{ id: `i-${Date.now()}`, text, createdAt: 'Agora mesmo' }, ...items]);
-    setNewIdea('');
-    setIsAddingIdea(false);
-  }
+  if (!loggedIn || location === '/login') return <LoginPage onLogin={handleLogin} />;
 
   return (
-    <div className="luma-shell">
+    <div className="nexora-shell min-h-[100dvh]">
       <div className="grain" aria-hidden="true" />
-      <div className="mx-auto flex min-h-[100dvh] w-full max-w-[1380px] flex-col px-5 py-5 sm:px-8 lg:flex-row lg:gap-14 lg:px-12 lg:py-8">
-        <aside className="flex shrink-0 items-center justify-between lg:sticky lg:top-8 lg:h-[calc(100dvh-4rem)] lg:w-52 lg:flex-col lg:items-stretch">
-          <button data-testid="button-home" onClick={() => setView('focus')} className="focus-ring group flex items-center gap-3 rounded-xl text-left">
-            <span className="grid h-10 w-10 place-items-center rounded-[14px] bg-[#203e40] text-[#f8f3e8] shadow-[4px_4px_0_#d4c4af] transition-transform group-hover:rotate-[-6deg]">
-              <Feather size={19} strokeWidth={1.7} />
-            </span>
-            <span className="font-display text-[25px] leading-none tracking-[-.04em] text-[#203e40]">luma</span>
-          </button>
-          <nav className="hidden space-y-2 lg:block" aria-label="Navegação principal">
-            <NavButton active={view === 'focus'} icon={<ListTodo size={17} />} label="Meu foco" onClick={() => setView('focus')} testId="nav-focus" />
-            <NavButton active={view === 'ideas'} icon={<Lightbulb size={17} />} label="Ideias soltas" onClick={() => setView('ideas')} testId="nav-ideas" count={ideas.length} />
-          </nav>
-          <div className="hidden lg:block">
-            <div className="mb-3 h-px w-8 bg-[#cbbfae]" />
-            <p className="font-mono-app text-[10px] uppercase tracking-[.15em] text-[#74827e]">um espaço para</p>
-            <p className="mt-2 max-w-[145px] font-display text-[17px] leading-[1.15] text-[#58706d]">fazer menos, com presença.</p>
-          </div>
-          <div className="flex items-center gap-2 lg:hidden">
-            <MobileNav active={view === 'focus'} onClick={() => setView('focus')} label="Foco" icon={<ListTodo size={16} />} testId="nav-mobile-focus" />
-            <MobileNav active={view === 'ideas'} onClick={() => setView('ideas')} label="Ideias" icon={<Lightbulb size={16} />} testId="nav-mobile-ideas" />
-          </div>
-        </aside>
-
-        <main className="min-w-0 flex-1 pb-10 pt-14 lg:pt-2">
-          {view === 'focus' ? (
-            <FocusView dateLabel={dateLabel} greeting={greeting} priorities={priorities} openPriorities={openPriorities} completed={completed} newPriority={newPriority} isAdding={isAddingPriority} setNewPriority={setNewPriority} setIsAdding={setIsAddingPriority} addPriority={addPriority} togglePriority={togglePriority} removePriority={(id) => setPriorities((items) => items.filter((item) => item.id !== id))} celebrating={celebrating} onIdeas={() => setView('ideas')} />
-          ) : (
-            <IdeasView ideas={ideas} newIdea={newIdea} isAdding={isAddingIdea} setNewIdea={setNewIdea} setIsAdding={setIsAddingIdea} addIdea={addIdea} removeIdea={(id) => setIdeas((items) => items.filter((item) => item.id !== id))} onFocus={() => setView('focus')} />
-          )}
-        </main>
+      <div className="flex min-h-[100dvh]">
+        <Sidebar page={page} onLogout={handleLogout} />
+        <div className="min-w-0 flex-1">
+          <Topbar onMenu={() => setMobileMenu(true)} onNotify={() => notify('Não há novas notificações.')} />
+          <main className="shell-scroll mx-auto max-w-[1480px] px-4 pb-28 pt-5 sm:px-7 lg:px-10 lg:pb-10">
+            <DemoBanner />
+            <Switch>
+              <Route path="/"><DashboardPage onNavigate={setLocation} notify={notify} /></Route>
+              <Route path="/intelligence"><IntelligencePage /></Route>
+              <Route path="/customers"><CustomersPage notify={notify} /></Route>
+              <Route path="/sales"><SalesPage /></Route>
+              <Route path="/finance"><FinancePage /></Route>
+              <Route path="/more"><MorePage approvals={approvals} decideApproval={decideApproval} onLogout={handleLogout} /></Route>
+              <Route><DashboardPage onNavigate={setLocation} notify={notify} /></Route>
+            </Switch>
+          </main>
+        </div>
       </div>
+      <MobileNav page={page} onMenu={() => setMobileMenu(true)} />
+      {mobileMenu && <MobileMenu page={page} onClose={() => setMobileMenu(false)} />}
+      {toast && <div data-testid="status-toast" className="fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#102a43] px-4 py-3 text-xs font-semibold text-[#eff8f5] shadow-xl lg:bottom-7"><CheckCircle2 size={15} className="text-[#75dec4]" />{toast}</div>}
     </div>
   );
 }
 
-function NavButton({ active, icon, label, onClick, testId, count }: { active: boolean; icon: ReactNode; label: string; onClick: () => void; testId: string; count?: number }) {
-  return <button data-testid={testId} onClick={onClick} className={`focus-ring soft-button flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${active ? 'bg-[#dce8dd] font-semibold text-[#203e40]' : 'text-[#70817c] hover:bg-[#e9e5db] hover:text-[#203e40]'}`}><span className={active ? 'text-[#e67e61]' : ''}>{icon}</span><span>{label}</span>{count !== undefined && <span className="ml-auto font-mono-app text-[10px] text-[#8b9990]">{count}</span>}</button>;
+function Logo({ compact = false }: { compact?: boolean }) {
+  return <Link href="/" data-testid="link-logo" className={`group flex items-center gap-2.5 ${compact ? 'justify-center' : ''}`}>
+    <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#75dec4] text-[#102a43] shadow-[0_5px_14px_rgba(51,174,145,.2)] transition-transform group-hover:rotate-6"><Zap size={18} fill="currentColor" /></span>
+    {!compact && <span><span className="block text-[15px] font-extrabold tracking-[.14em] text-[#edf6f7]">NEXORA</span><span className="block font-mono-app text-[8px] tracking-[.24em] text-[#84a0b2]">BUSINESS OS</span></span>}
+  </Link>;
 }
 
-function MobileNav({ active, onClick, label, icon, testId }: { active: boolean; onClick: () => void; label: string; icon: ReactNode; testId: string }) {
-  return <button data-testid={testId} onClick={onClick} className={`focus-ring flex items-center gap-1.5 rounded-full px-3 py-2 text-xs ${active ? 'bg-[#dce8dd] font-semibold text-[#203e40]' : 'text-[#70817c]'}`}>{icon}{label}</button>;
+function Sidebar({ page, onLogout }: { page: PageKey; onLogout: () => void }) {
+  return <aside className="hidden w-[244px] shrink-0 flex-col bg-[#102a43] px-4 py-5 text-[#dceaf0] lg:flex">
+    <Logo />
+    <div className="mt-11 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[.055] p-3">
+      <div className="grid h-9 w-9 place-items-center rounded-lg bg-[#d7eff0] text-xs font-bold text-[#102a43]">AS</div>
+      <div className="min-w-0"><p className="truncate text-xs font-bold">Aurora Studio</p><p className="mt-0.5 truncate text-[10px] text-[#86a2b1]">Conta demonstração</p></div>
+      <ChevronDown size={14} className="ml-auto text-[#7896a5]" />
+    </div>
+    <p className="mb-2 mt-10 px-3 font-mono-app text-[9px] uppercase tracking-[.18em] text-[#6f8da0]">Operação</p>
+    <nav className="space-y-1" aria-label="Navegação principal">
+      {navItems.map((item) => { const Icon = item.icon; const active = page === item.key; return <Link key={item.key} href={item.key === 'dashboard' ? '/' : `/${item.key}`} data-testid={`link-nav-${item.key}`} className={`group flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-semibold transition-colors ${active ? 'bg-[#75dec4] text-[#102a43]' : 'text-[#a8bfca] hover:bg-white/[.07] hover:text-white'}`}><Icon size={17} strokeWidth={active ? 2.5 : 1.8} /><span>{item.label}</span>{item.key === 'more' && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#f4b86a]" />}</Link>; })}
+    </nav>
+    <div className="mt-auto space-y-1">
+      <Link href="/more" data-testid="link-settings" className="flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-semibold text-[#a8bfca] hover:bg-white/[.07] hover:text-white"><Settings size={17} />Definições</Link>
+      <button data-testid="button-logout" onClick={onLogout} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] font-semibold text-[#a8bfca] hover:bg-white/[.07] hover:text-white"><LogOut size={17} />Sair da demonstração</button>
+      <div className="mt-4 border-t border-white/10 px-3 pt-4"><p className="font-mono-app text-[9px] leading-relaxed text-[#6f8da0]">NEXORA AI v0.1<br />Ambiente de demonstração</p></div>
+    </div>
+  </aside>;
 }
 
-function FocusView({ dateLabel, greeting, priorities, openPriorities, completed, newPriority, isAdding, setNewPriority, setIsAdding, addPriority, togglePriority, removePriority, celebrating, onIdeas }: { dateLabel: string; greeting: string; priorities: Priority[]; openPriorities: Priority[]; completed: number; newPriority: string; isAdding: boolean; setNewPriority: (v: string) => void; setIsAdding: (v: boolean) => void; addPriority: (e: FormEvent) => void; togglePriority: (id: string) => void; removePriority: (id: string) => void; celebrating: string | null; onIdeas: () => void }) {
-  return <div className="view-in">
-    <header className="stagger-in max-w-3xl">
-      <p data-testid="text-date" className="font-mono-app text-[11px] uppercase tracking-[.2em] text-[#e67e61]">{dateLabel}</p>
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-6">
-        <div>
-          <h1 data-testid="text-greeting" className="font-display text-[clamp(3.3rem,8vw,6.6rem)] leading-[.86] tracking-[-.065em] text-[#203e40]">{greeting},<br /><span className="text-[#6f8a83]">Inês.</span></h1>
-          <p className="mt-6 max-w-md text-[15px] leading-relaxed text-[#6c7b77]">Antes de tudo começar, escolha onde pousar a sua atenção.</p>
-        </div>
-        <div className="mb-1 hidden h-20 w-20 rotate-3 items-center justify-center rounded-[48%_52%_46%_54%] bg-[#f2d27b] text-center sm:flex">
-          <Sparkles size={24} className="text-[#826b39]" strokeWidth={1.5} />
-        </div>
-      </div>
-    </header>
+function Topbar({ onMenu, onNotify }: { onMenu: () => void; onNotify: () => void }) {
+  return <header className="sticky top-0 z-30 flex h-[70px] items-center justify-between border-b border-[#dbe5e9]/80 bg-[#eef3f7]/90 px-4 backdrop-blur-md sm:px-7 lg:px-10">
+    <button data-testid="button-mobile-menu" onClick={onMenu} className="grid h-9 w-9 place-items-center rounded-xl text-[#3d5870] hover:bg-[#dfeaed] lg:hidden"><Menu size={20} /></button>
+    <div className="hidden items-center gap-2 text-xs text-[#668095] sm:flex"><span className="h-2 w-2 rounded-full bg-[#38b891]" />Dados da operação <span className="text-[#a0b1bc]">/</span> Última sincronização: demonstração</div>
+    <div className="ml-auto flex items-center gap-2.5">
+      <button data-testid="button-search" onClick={() => document.getElementById('global-search')?.focus()} className="hidden h-9 items-center gap-2 rounded-xl border border-[#d8e3e8] bg-[#f7fafb] px-3 text-xs text-[#7890a0] sm:flex"><Search size={15} />Pesquisar <span className="font-mono-app text-[9px] text-[#a5b4bd]">⌘ K</span></button>
+      <button data-testid="button-notifications" onClick={onNotify} aria-label="Notificações" className="relative grid h-9 w-9 place-items-center rounded-xl border border-[#d8e3e8] bg-[#f7fafb] text-[#49677d] hover:border-[#abd6cb]"><Bell size={16} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#ef9d63]" /></button>
+      <div className="grid h-9 w-9 place-items-center rounded-full bg-[#cfe7ea] text-[11px] font-bold text-[#17445b]">RA</div>
+    </div>
+  </header>;
+}
 
-    <section className="stagger-in stagger-2 mt-14 grid max-w-5xl gap-7 xl:grid-cols-[minmax(0,1fr)_280px]">
-      <div>
-        <div className="mb-5 flex items-end justify-between border-b border-[#d5cabb] pb-3">
-          <div>
-            <p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-[#88938c]">o essencial</p>
-            <h2 className="mt-1 font-display text-[31px] tracking-[-.035em] text-[#203e40]">Suas prioridades</h2>
-          </div>
-          <span data-testid="text-priority-progress" className="font-mono-app text-[11px] text-[#7b8983]">{completed}/{priorities.length} feitas</span>
-        </div>
-        <div className="space-y-2.5">
-          {priorities.map((item, index) => <PriorityRow key={item.id} item={item} index={index} celebrating={celebrating === item.id} onToggle={() => togglePriority(item.id)} onRemove={() => removePriority(item.id)} />)}
-        </div>
-        {isAdding ? <form onSubmit={addPriority} className="stagger-in mt-3 flex items-center gap-2 rounded-2xl border border-[#c8bdae] bg-[#fbf8f1] p-2 pl-4 shadow-[0_8px_20px_rgba(63,71,58,.06)]"><input autoFocus data-testid="input-new-priority" value={newPriority} onChange={(e) => setNewPriority(e.target.value)} placeholder="O que merece espaço hoje?" className="focus-ring min-w-0 flex-1 bg-transparent text-sm text-[#203e40] outline-none placeholder:text-[#a5aaa1]" /><button data-testid="button-save-priority" type="submit" aria-label="Salvar prioridade" className="soft-button focus-ring grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e67e61] text-white hover:bg-[#d96f55]"><Check size={17} /></button><button data-testid="button-cancel-priority" type="button" aria-label="Cancelar" onClick={() => { setIsAdding(false); setNewPriority(''); }} className="focus-ring grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[#8b9690] hover:bg-[#e9e5db]"><X size={17} /></button></form> : <button data-testid="button-add-priority" onClick={() => setIsAdding(true)} className="focus-ring soft-button mt-4 flex items-center gap-2 rounded-xl px-2 py-2 text-sm font-semibold text-[#e67e61] hover:bg-[#f0e8dc]"><Plus size={17} />Adicionar prioridade</button>}
-        {priorities.length === 0 && <EmptyPriorities onAdd={() => setIsAdding(true)} />}
-        {priorities.length > 0 && openPriorities.length === 0 && <div data-testid="status-all-complete" className="stagger-in mt-5 flex items-center gap-3 rounded-2xl border border-[#bfd5c5] bg-[#e3eee5] px-4 py-3 text-sm text-[#4e7064]"><span className="grid h-7 w-7 place-items-center rounded-full bg-[#9fc5ad] text-[#244e47]"><Check size={15} /></span>Por hoje, o essencial está cuidado.</div>}
-      </div>
+function MobileNav({ page, onMenu }: { page: PageKey; onMenu: () => void }) {
+  return <nav className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-6 border-t border-[#d6e3e7] bg-[#f7fafb]/95 px-1 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden">
+    {navItems.map((item) => { const Icon = item.icon; const active = page === item.key; return <Link key={item.key} href={item.key === 'dashboard' ? '/' : `/${item.key}`} data-testid={`mobile-nav-${item.key}`} className={`flex flex-col items-center gap-1 rounded-lg py-1.5 text-[9px] font-bold transition-colors ${active ? 'text-[#16866f]' : 'text-[#7890a0]'}`}><Icon size={18} strokeWidth={active ? 2.5 : 1.7} /><span>{item.short}</span>{active && <span className="h-0.5 w-4 rounded-full bg-[#38b891]" />}</Link>; })}
+  </nav>;
+}
 
-      <aside className="stagger-in stagger-3 relative overflow-hidden rounded-[24px] bg-[#203e40] p-6 text-[#e9eee6] shadow-[8px_10px_0_rgba(182,158,129,.27)]">
-        <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full border-[18px] border-[#ef8a6b]/25" />
-        <div className="absolute -bottom-12 -left-12 h-36 w-36 rounded-full border-[18px] border-[#b4d3c4]/15" />
-        <p className="relative font-mono-app text-[10px] uppercase tracking-[.18em] text-[#a9cbb8]">uma pausa para lembrar</p>
-        <p data-testid="text-daily-note" className="relative mt-10 font-display text-[27px] leading-[1.08] tracking-[-.03em]">A atenção é uma forma de carinho.</p>
-        <div className="relative mt-9 flex items-center justify-between border-t border-white/15 pt-4"><span className="font-mono-app text-[10px] text-[#9eb9ad]">01 — presença</span><span className="h-2 w-2 rounded-full bg-[#ef8a6b]" /></div>
-      </aside>
-    </section>
+function MobileMenu({ page, onClose }: { page: PageKey; onClose: () => void }) {
+  return <div className="fixed inset-0 z-50 bg-[#102a43]/40 backdrop-blur-sm lg:hidden" onClick={onClose}><aside className="h-full w-[82%] max-w-[320px] bg-[#102a43] p-5 text-[#e9f3f4] shadow-2xl" onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between"><Logo /><button data-testid="button-close-menu" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg bg-white/10"><X size={17} /></button></div><p className="mb-2 mt-12 px-2 font-mono-app text-[9px] uppercase tracking-[.18em] text-[#6f8da0]">Operação</p><nav className="space-y-1">{navItems.map((item) => { const Icon = item.icon; return <Link onClick={onClose} key={item.key} href={item.key === 'dashboard' ? '/' : `/${item.key}`} data-testid={`menu-link-${item.key}`} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${page === item.key ? 'bg-[#75dec4] text-[#102a43]' : 'text-[#a8bfca]'}`}><Icon size={18} />{item.label}</Link>; })}</nav><div className="mt-12 rounded-xl border border-white/10 bg-white/[.05] p-4"><p className="text-xs font-bold">Acesso por permissões</p><p className="mt-1 text-[11px] leading-relaxed text-[#8ba4b1]">O seu perfil define o que pode consultar, preparar ou aprovar.</p></div></aside></div>;
+}
 
-    <section className="stagger-in stagger-4 mt-16 max-w-5xl border-t border-[#d5cabb] pt-5">
-      <button data-testid="button-open-ideas" onClick={onIdeas} className="focus-ring soft-button group flex w-full items-center justify-between rounded-xl py-2 text-left">
-        <span className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[#f0d88d]/60 text-[#806b3c]"><Lightbulb size={17} strokeWidth={1.8} /></span><span><span className="block text-sm font-semibold text-[#203e40]">Ideias soltas</span><span className="mt-0.5 block text-xs text-[#89938b]">Guarde o que não precisa de resposta agora.</span></span></span>
-        <span className="flex items-center gap-2 text-xs font-semibold text-[#80908a] group-hover:text-[#e67e61]">Abrir espaço <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" /></span>
-      </button>
-    </section>
+function DemoBanner() {
+  return <div data-testid="status-demo-mode" className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#b9ded6] bg-[#e3f4ef] px-3.5 py-2.5 text-[11px] text-[#276c60]"><span className="flex items-center gap-2 font-semibold"><span className="h-1.5 w-1.5 rounded-full bg-[#299d80] pulse-soft" />Modo demonstração · APIs ainda não ligadas</span><span className="flex items-center gap-1.5 text-[#548277]"><ShieldCheck size={13} />Valores de amostra · nenhuma ação é executada</span></div>;
+}
+
+function PageHeading({ eyebrow, title, subtitle, action }: { eyebrow: string; title: string; subtitle: string; action?: ReactNode }) {
+  return <div className="stagger-in mb-7 flex flex-wrap items-end justify-between gap-4"><div><p className="font-mono-app text-[10px] font-bold uppercase tracking-[.18em] text-[#229278]">{eyebrow}</p><h1 className="mt-2 text-[clamp(1.8rem,3vw,2.6rem)] font-extrabold tracking-[-.05em] text-[#142d46]">{title}</h1><p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#668095]">{subtitle}</p></div>{action}</div>;
+}
+
+function MetricCard({ label, value, change, trend = 'up', note, icon: Icon, accent = 'teal' }: { label: string; value: string; change: string; trend?: 'up' | 'down' | 'neutral'; note: string; icon: typeof TrendingUp; accent?: 'teal' | 'amber' | 'blue' | 'coral' }) {
+  const colors = { teal: 'bg-[#e1f4ed] text-[#21816c]', amber: 'bg-[#fff0d8] text-[#a86d24]', blue: 'bg-[#e4eff9] text-[#38739e]', coral: 'bg-[#fbe7e5] text-[#b25855]' };
+  return <article data-testid={`metric-${label.toLowerCase().replaceAll(' ', '-')}`} className="card-hover stagger-in rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-4 shadow-[0_2px_8px_rgba(31,70,90,.025)] sm:p-5"><div className="flex items-start justify-between"><div className={`grid h-9 w-9 place-items-center rounded-xl ${colors[accent]}`}><Icon size={17} /></div><span className={`flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${trend === 'down' ? 'bg-[#fbe7e5] text-[#bb625d]' : trend === 'neutral' ? 'bg-[#edf1f3] text-[#718895]' : 'bg-[#e4f3ed] text-[#27816d]'}`}>{trend === 'down' ? <ArrowDownRight size={12} /> : trend === 'neutral' ? <Activity size={12} /> : <ArrowUpRight size={12} />}{change}</span></div><p className="mt-5 text-xs font-semibold text-[#668095]">{label}</p><p className="mt-1 text-[clamp(1.3rem,2vw,1.75rem)] font-extrabold tracking-[-.045em] text-[#142d46]">{value}</p><p className="mt-1 text-[10px] text-[#91a3ad]">{note}</p></article>;
+}
+
+function DashboardPage({ onNavigate, notify }: { onNavigate: (path: string) => void; notify: (s: string) => void }) {
+  return <div><PageHeading eyebrow="Visão executiva · terça-feira, 18 de junho" title="Bom dia, Rafael." subtitle="Aqui está o pulso da Aurora Studio. Acompanhe o que pede contexto — não apenas o que pede atenção." action={<button data-testid="button-refresh-dashboard" onClick={() => notify('Dados de demonstração atualizados.')} className="soft-button flex items-center gap-2 rounded-xl border border-[#d4e1e6] bg-[#fbfcfc] px-3.5 py-2.5 text-xs font-bold text-[#45657a]"><RefreshCw size={14} />Atualizar visão</button>} />
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Receita no período" value="R$ 48.760" change="+12,8%" note="vs. período anterior" icon={TrendingUp} /><MetricCard label="Vendas realizadas" value="127" change="+8,4%" note="últimos 30 dias" icon={ShoppingBag} accent="blue" /><MetricCard label="Despesas" value="R$ 19.420" change="-3,1%" trend="down" note="vs. período anterior" icon={ArrowDownRight} accent="amber" /><MetricCard label="Margem líquida" value="28,6%" change="+2,4 p.p." note="margem saudável" icon={Percent} accent="teal" /></section>
+    <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(310px,.8fr)]">
+      <RevenueChart />
+      <ExecutiveSummary onOpen={() => onNavigate('/intelligence')} />
+    </div>
+    <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr_1fr]">
+      <ReceivablesCard onOpen={() => onNavigate('/finance')} />
+      <StockCard onOpen={() => onNavigate('/more')} />
+      <AlertsCard onOpen={() => onNavigate('/more')} />
+    </div>
   </div>;
 }
 
-function PriorityRow({ item, index, celebrating, onToggle, onRemove }: { item: Priority; index: number; celebrating: boolean; onToggle: () => void; onRemove: () => void }) {
-  return <div data-testid={`row-priority-${item.id}`} className={`priority-row group stagger-in flex items-center gap-3 rounded-2xl border border-[#ddd3c6] bg-[#f9f5ed]/75 px-3 py-3.5 sm:px-4 ${item.done ? 'completed opacity-65' : ''}`} style={{ animationDelay: `${index * 70 + 300}ms` }}>
-    <button data-testid={`button-toggle-priority-${item.id}`} onClick={onToggle} aria-label={item.done ? 'Reabrir prioridade' : 'Concluir prioridade'} className={`focus-ring grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-all ${item.done ? 'border-[#9fc5ad] bg-[#9fc5ad] text-[#29564d]' : 'border-[#b9bdb2] text-transparent hover:border-[#e67e61] hover:bg-[#fae2d9]'}`}>{item.done ? <Check size={14} className={celebrating ? 'check-pop' : ''} strokeWidth={2.5} /> : <Circle size={7} fill="currentColor" />}</button>
-    <span className={`min-w-0 flex-1 text-sm ${item.done ? 'text-[#80918a] line-through decoration-[#b7c7bd]' : 'text-[#344e4d]'}`}>{item.text}</span>
-    <button data-testid={`button-remove-priority-${item.id}`} onClick={onRemove} aria-label="Remover prioridade" className="focus-ring grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[#abb0a8] opacity-0 transition-opacity hover:bg-[#f2ddd4] hover:text-[#c8614e] group-hover:opacity-100 focus:opacity-100 sm:opacity-0"><Trash2 size={15} /></button>
+function RevenueChart() {
+  const points = '0,122 45,112 90,118 135,89 180,98 225,63 270,74 315,49 360,60 405,32 450,42 495,20';
+  return <section className="card-hover rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-mono-app text-[9px] uppercase tracking-[.16em] text-[#7d96a3]">Performance financeira</p><h2 className="mt-1 text-base font-extrabold text-[#193650]">Receita & despesas</h2></div><div className="flex items-center gap-4 text-[10px] text-[#6f8795]"><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-[#2eb18e]" />Receita</span><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-[#aec7d7]" />Despesas</span><select data-testid="select-chart-period" className="rounded-lg border border-[#dbe5e9] bg-[#f5f8f9] px-2 py-1 text-[10px] font-semibold text-[#557183] outline-none"><option>30 dias</option><option>90 dias</option><option>Este ano</option></select></div></div><div className="mt-7 overflow-hidden"><svg viewBox="0 0 520 155" className="h-[180px] w-full" role="img" aria-label="Gráfico de receita e despesas de demonstração"><path d="M0 145H520M0 108H520M0 71H520M0 34H520" stroke="#e4ecef" strokeWidth="1" /><path d={`M${points}`} fill="none" stroke="#2eb18e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="chart-line" /><path d="M0,140 45,137 90,139 135,119 180,124 225,112 270,112 315,91 360,101 405,83 450,92 495,76" fill="none" stroke="#aec7d7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M0 122 L45 112 L90 118 L135 89 L180 98 L225 63 L270 74 L315 49 L360 60 L405 32 L450 42 L495 20 L495 155 L0 155Z" fill="url(#area)" opacity=".15" /><defs><linearGradient id="area" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#2eb18e" /><stop offset="1" stopColor="#2eb18e" stopOpacity="0" /></linearGradient></defs><g fill="#8da3ae" fontSize="9" fontFamily="Space Mono"><text x="0" y="153">19 mai</text><text x="122" y="153">26 mai</text><text x="247" y="153">02 jun</text><text x="372" y="153">09 jun</text><text x="470" y="153">16 jun</text></g></svg></div></section>;
+}
+
+function ExecutiveSummary({ onOpen }: { onOpen: () => void }) {
+  return <section className="relative overflow-hidden rounded-2xl bg-[#163b58] p-5 text-[#eaf6f5] shadow-[0_12px_30px_rgba(20,59,88,.12)] sm:p-6"><div className="absolute -right-16 -top-20 h-48 w-48 rounded-full border-[26px] border-[#75dec4]/10" /><div className="absolute -bottom-20 -left-20 h-48 w-48 rounded-full border-[20px] border-[#83b9dc]/10" /><div className="relative flex items-center justify-between"><p className="flex items-center gap-2 font-mono-app text-[9px] uppercase tracking-[.15em] text-[#75dec4]"><Bot size={15} />NEXORA Intelligence</p><span className="rounded-full border border-white/15 px-2 py-1 text-[9px] text-[#a1c2cc]">PRÉVIA</span></div><h2 className="relative mt-8 text-xl font-extrabold leading-tight tracking-[-.04em]">O que merece a sua leitura hoje</h2><p className="relative mt-4 text-sm leading-relaxed text-[#b8d0d5]">A receita cresce acima das despesas pelo terceiro período. O ponto de atenção está em <strong className="font-bold text-[#f7c77e]">R$ 6.840 em contas a receber</strong> com vencimento nos próximos 7 dias.</p><div className="relative mt-6 border-t border-white/15 pt-4"><p className="flex items-center gap-2 text-[11px] text-[#a9c5cc]"><ShieldCheck size={14} className="text-[#75dec4]" />Sugestão, não execução automática</p><button data-testid="button-open-ai-summary" onClick={onOpen} className="soft-button mt-4 flex items-center gap-2 text-xs font-bold text-[#75dec4]">Explorar com a IA <ChevronRight size={15} /></button></div></section>;
+}
+
+function ReceivablesCard({ onOpen }: { onOpen: () => void }) {
+  return <MiniPanel title="A receber" icon={<WalletCards size={16} />} action="Ver finanças" onOpen={onOpen}><div className="flex items-end justify-between"><div><p className="text-2xl font-extrabold tracking-[-.05em] text-[#193650]">R$ 6.840</p><p className="mt-1 text-[10px] text-[#8a9da7]">em 12 títulos abertos</p></div><span className="flex items-center gap-1 text-[10px] font-bold text-[#c26d4e]"><Clock3 size={12} />3 vencem hoje</span></div><div className="mt-5 h-2 overflow-hidden rounded-full bg-[#edf1f3]"><div className="h-full w-[62%] rounded-full bg-[#f0b56a]" /></div><div className="mt-2 flex justify-between text-[9px] text-[#8b9ea8]"><span>Em dia 62%</span><span>Em atraso 38%</span></div></MiniPanel>;
+}
+
+function StockCard({ onOpen }: { onOpen: () => void }) {
+  return <MiniPanel title="Stock crítico" icon={<Package size={16} />} action="Abrir stock" onOpen={onOpen}><div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-full border-[5px] border-[#f6c97f] border-r-[#edf1f3] text-xs font-extrabold text-[#9b6b2d]">7</div><div><p className="text-sm font-bold text-[#193650]">Itens pedem reposição</p><p className="mt-1 text-[10px] text-[#8a9da7]">abaixo do ponto mínimo</p></div></div><div className="mt-5 flex items-center justify-between rounded-xl bg-[#fff5e5] px-3 py-2.5 text-[10px] text-[#95652a]"><AlertCircle size={14} />Última revisão há 2 dias<ChevronRight size={14} /></div></MiniPanel>;
+}
+
+function AlertsCard({ onOpen }: { onOpen: () => void }) {
+  return <MiniPanel title="Sinais relevantes" icon={<Activity size={16} />} action="Ver alertas" onOpen={onOpen}><div className="space-y-3"><div className="flex items-start gap-2.5"><span className="mt-1.5 h-2 w-2 rounded-full bg-[#35ad8d]" /><p className="text-xs leading-relaxed text-[#536f81]"><strong className="text-[#193650]">Conversão +4,2%</strong> em clientes recorrentes</p></div><div className="flex items-start gap-2.5"><span className="mt-1.5 h-2 w-2 rounded-full bg-[#efa76b]" /><p className="text-xs leading-relaxed text-[#536f81]"><strong className="text-[#193650]">3 faturas</strong> precisam de acompanhamento</p></div></div></MiniPanel>;
+}
+
+function MiniPanel({ title, icon, action, onOpen, children }: { title: string; icon: ReactNode; action: string; onOpen: () => void; children: ReactNode }) {
+  return <section className="card-hover rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-5"><div className="mb-5 flex items-center justify-between"><h2 className="flex items-center gap-2 text-sm font-extrabold text-[#193650]"><span className="text-[#24917a]">{icon}</span>{title}</h2><button data-testid={`button-${action.replaceAll(' ', '-').toLowerCase()}`} onClick={onOpen} className="text-[10px] font-bold text-[#2b9b81] hover:underline">{action}</button></div>{children}</section>;
+}
+
+function IntelligencePage() {
+  const [messages, setMessages] = useState(messagesSeed);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const prompts = ['Como está a saúde financeira?', 'O que está a crescer este mês?', 'Quais clientes merecem atenção?', 'Onde posso proteger a margem?'];
+  const submit = (event?: FormEvent, preset?: string) => {
+    event?.preventDefault();
+    const text = (preset || input).trim(); if (!text || sending) return;
+    setMessages((items) => [...items, { from: 'user', text }]); setInput(''); setSending(true);
+    window.setTimeout(() => { setMessages((items) => [...items, { from: 'ai', text: `Na leitura dos dados de demonstração, a sua pergunta sobre “${text.toLowerCase()}” aponta para uma oportunidade de acompanhamento. A receita está a crescer 12,8%, enquanto 3 cobranças e 7 itens de stock pedem contexto. Posso detalhar os sinais, mas qualquer ação continua dependente da sua aprovação.`, meta: 'Resposta de prévia · não representa dados ligados' }]); setSending(false); }, 900);
+  };
+  return <div><PageHeading eyebrow="NEXORA Intelligence" title="Pergunte ao seu negócio." subtitle="Uma camada de análise para pensar com clareza. As respostas abaixo são prévias com dados de demonstração — não são recomendações financeiras." action={<div className="flex items-center gap-2 rounded-xl border border-[#cce6df] bg-[#e9f7f3] px-3 py-2 text-[10px] font-bold text-[#287867]"><ShieldCheck size={14} />Sempre com aprovação</div>} />
+    <div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-[#d7e4e8] bg-[#fafdfe] shadow-[0_14px_40px_rgba(38,74,94,.07)]"><div className="flex items-center gap-3 border-b border-[#e1ebee] bg-[#f3f8f9] px-5 py-4"><div className="grid h-9 w-9 place-items-center rounded-xl bg-[#d4f2e9] text-[#21856e]"><Bot size={18} /></div><div><p className="text-xs font-extrabold text-[#193650]">NEXORA Intelligence</p><p className="font-mono-app text-[9px] text-[#7d97a3]">prévia analítica · conta Aurora Studio</p></div><span className="ml-auto flex items-center gap-1.5 text-[10px] font-bold text-[#289379]"><span className="h-1.5 w-1.5 rounded-full bg-[#2cb28e]" />Disponível</span></div><div className="min-h-[360px] space-y-5 p-5 sm:p-7">{messages.map((message, index) => <div key={`${message.from}-${index}`} data-testid={`message-${message.from}-${index}`} className={`flex gap-3 ${message.from === 'user' ? 'justify-end' : ''}`}><div className={`max-w-[88%] rounded-2xl px-4 py-3.5 text-sm leading-relaxed ${message.from === 'user' ? 'rounded-br-md bg-[#d9f0eb] text-[#205e56]' : 'rounded-bl-md border border-[#e0eaed] bg-[#f3f7f8] text-[#456579]'}`}>{message.text}{message.meta && <p className="mt-3 flex items-center gap-1.5 border-t border-[#d8e4e7] pt-2 font-mono-app text-[9px] text-[#7e9aa4]"><ShieldCheck size={11} />{message.meta}</p>}</div></div>)}{sending && <div data-testid="status-chat-loading" className="flex items-center gap-2 text-xs text-[#7e99a4]"><span className="h-2 w-2 animate-pulse rounded-full bg-[#34ac8b]" /><span className="h-2 w-2 animate-pulse rounded-full bg-[#34ac8b] [animation-delay:150ms]" /><span className="h-2 w-2 animate-pulse rounded-full bg-[#34ac8b] [animation-delay:300ms]" />A analisar a sua pergunta…</div>}</div><div className="border-t border-[#e1ebee] bg-[#f8fbfb] p-4 sm:p-5"><p className="mb-3 font-mono-app text-[9px] uppercase tracking-[.14em] text-[#8aa0aa]">Comece por uma pergunta</p><div className="mb-4 flex gap-2 overflow-x-auto pb-1">{prompts.map((prompt) => <button key={prompt} data-testid={`button-prompt-${prompt.slice(0, 5)}`} onClick={() => submit(undefined, prompt)} className="shrink-0 rounded-full border border-[#d7e5e8] bg-[#fff] px-3 py-2 text-[11px] font-semibold text-[#557486] hover:border-[#9ed6c8] hover:text-[#20866f]">{prompt}</button>)}</div><form onSubmit={submit} className="flex items-center gap-2 rounded-xl border border-[#cadde2] bg-[#fff] p-2 pl-4 focus-within:border-[#64bca7] focus-within:ring-2 focus-within:ring-[#bcecdf]"><input data-testid="input-chat" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Escreva uma pergunta sobre a sua operação…" className="min-w-0 flex-1 bg-transparent text-sm text-[#193650] outline-none placeholder:text-[#9db0b9]" /><button data-testid="button-send-chat" type="submit" aria-label="Enviar pergunta" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#163b58] text-[#75dec4] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40" disabled={!input.trim() || sending}><Send size={16} /></button></form></div></div>
   </div>;
 }
 
-function EmptyPriorities({ onAdd }: { onAdd: () => void }) {
-  return <div data-testid="empty-priorities" className="stagger-in mt-4 rounded-2xl border border-dashed border-[#c9bda9] bg-[#f8f3e9]/70 px-6 py-8 text-center"><div className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-[#e2ece2] text-[#668777]"><Feather size={20} /></div><p className="mt-3 font-display text-[21px] text-[#496560]">Um espaço em branco.</p><p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-[#89938b]">Escolha uma pequena coisa para dar vida a este dia.</p><button data-testid="button-empty-add-priority" onClick={onAdd} className="focus-ring mt-4 text-xs font-semibold text-[#e67e61] underline decoration-[#e67e61]/30 underline-offset-4">Começar por uma prioridade</button></div>;
+function CustomersPage({ notify }: { notify: (s: string) => void }) {
+  const [tab, setTab] = useState('Todos'); const [search, setSearch] = useState('');
+  const customers = [{ id: 'c1', name: 'Casa Mimo', initials: 'CM', status: 'Ativo', opportunity: 'R$ 3.240', next: 'Follow-up hoje', color: 'bg-[#e1f1ed]' }, { id: 'c2', name: 'Estúdio Norte', initials: 'EN', status: 'Oportunidade', opportunity: 'R$ 1.890', next: 'Proposta enviada', color: 'bg-[#e6eef8]' }, { id: 'c3', name: 'Mundo Caderno', initials: 'MC', status: 'Ativo', opportunity: 'R$ 780', next: 'Compra há 12 dias', color: 'bg-[#fcebd7]' }, { id: 'c4', name: 'Ateliê Aurora', initials: 'AA', status: 'Em atenção', opportunity: 'R$ 2.460', next: 'Fatura em atraso', color: 'bg-[#fbe6e4]' }, { id: 'c5', name: 'Vértice Design', initials: 'VD', status: 'Lead', opportunity: 'R$ 4.100', next: 'Novo lead · ontem', color: 'bg-[#eee8f7]' }];
+  const filtered = customers.filter((customer) => (tab === 'Todos' || customer.status === tab) && customer.name.toLowerCase().includes(search.toLowerCase()));
+  return <div><PageHeading eyebrow="Relacionamento" title="Clientes & leads" subtitle="Acompanhe o valor de cada relação e o próximo contexto comercial — sem perder a visão humana." action={<button data-testid="button-add-customer" onClick={() => notify('Criar cliente estará disponível quando a API estiver ligada.')} className="soft-button flex items-center gap-2 rounded-xl bg-[#163b58] px-4 py-2.5 text-xs font-bold text-white"><Plus size={15} />Adicionar cliente</button>} /><section className="rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc]"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e1eaed] p-4"><div className="flex gap-1 overflow-x-auto">{['Todos', 'Ativo', 'Oportunidade', 'Lead', 'Em atenção'].map((item) => <button key={item} data-testid={`filter-customers-${item}`} onClick={() => setTab(item)} className={`rounded-lg px-3 py-2 text-[11px] font-bold ${tab === item ? 'bg-[#d9f0eb] text-[#207d69]' : 'text-[#78909d] hover:bg-[#f0f5f6]'}`}>{item}</button>)}</div><label className="flex min-w-[180px] items-center gap-2 rounded-lg border border-[#dbe5e9] bg-[#f7fafb] px-3 py-2 text-xs text-[#91a4ad]"><Search size={14} /><input data-testid="input-search-customers" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Procurar cliente" className="w-full bg-transparent outline-none placeholder:text-[#9fb0b7]" /></label></div><div className="hidden grid-cols-[1.4fr_1fr_1fr_1fr_auto] gap-4 border-b border-[#e9eff1] px-5 py-3 font-mono-app text-[9px] uppercase tracking-[.12em] text-[#8da0aa] sm:grid"><span>Cliente</span><span>Estado</span><span>Oportunidade</span><span>Próximo sinal</span><span /></div><div>{filtered.map((customer) => <div key={customer.id} data-testid={`row-customer-${customer.id}`} className="card-hover flex flex-wrap items-center gap-3 border-b border-[#e9eff1] px-4 py-4 last:border-0 sm:grid sm:grid-cols-[1.4fr_1fr_1fr_1fr_auto] sm:gap-4 sm:px-5"><div className="flex min-w-[45%] items-center gap-3"><div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[10px] font-extrabold text-[#315b6c] ${customer.color}`}>{customer.initials}</div><div><p className="text-xs font-extrabold text-[#193650]">{customer.name}</p><p className="mt-0.5 text-[10px] text-[#91a3ad]">Cliente desde 2023</p></div></div><span className={`w-fit rounded-full px-2.5 py-1 text-[10px] font-bold ${customer.status === 'Ativo' ? 'bg-[#e0f3ed] text-[#27816e]' : customer.status === 'Em atenção' ? 'bg-[#fff0dc] text-[#a36d2e]' : 'bg-[#e7eef8] text-[#43739c]'}`}>{customer.status}</span><p className="text-xs font-bold text-[#42637a]">{customer.opportunity}</p><p className="text-[11px] text-[#6e8795]">{customer.next}</p><button data-testid={`button-customer-${customer.id}`} onClick={() => notify(`Perfil de ${customer.name} em prévia.`)} className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-[#7b94a0] hover:bg-[#e9f4f2] hover:text-[#22866f]"><ChevronRight size={16} /></button></div>)}</div>{filtered.length === 0 && <EmptyState icon={<Users size={22} />} title="Nenhum cliente encontrado" text="Tente ajustar o filtro ou a procura." />}</section></div>;
 }
 
-function IdeasView({ ideas, newIdea, isAdding, setNewIdea, setIsAdding, addIdea, removeIdea, onFocus }: { ideas: Idea[]; newIdea: string; isAdding: boolean; setNewIdea: (v: string) => void; setIsAdding: (v: boolean) => void; addIdea: (e: FormEvent) => void; removeIdea: (id: string) => void; onFocus: () => void }) {
-  return <div className="view-in max-w-4xl">
-    <header className="stagger-in flex flex-wrap items-start justify-between gap-5">
-      <div><button data-testid="button-back-focus" onClick={onFocus} className="focus-ring mb-8 flex items-center gap-1 text-xs font-semibold text-[#7b8983] hover:text-[#e67e61]"><ChevronRight size={15} className="rotate-180" />Voltar ao foco</button><p className="font-mono-app text-[11px] uppercase tracking-[.2em] text-[#e67e61]">caderno aberto</p><h1 data-testid="text-ideas-title" className="mt-4 font-display text-[clamp(3.2rem,8vw,6rem)] leading-[.88] tracking-[-.06em] text-[#203e40]">Ideias<br /><span className="text-[#6f8a83]">soltas.</span></h1><p className="mt-6 max-w-md text-[15px] leading-relaxed text-[#6c7b77]">Nem tudo precisa virar tarefa. Deixe aqui o que quer continuar consigo.</p></div>
-      <div className="mt-2 grid h-20 w-20 place-items-center rounded-[55%_45%_52%_48%] bg-[#f2d27b] text-[#826b39] sm:mt-14"><Lightbulb size={28} strokeWidth={1.4} /></div>
-    </header>
-    <section className="stagger-in stagger-2 mt-14">
-      <div className="mb-5 flex items-end justify-between border-b border-[#d5cabb] pb-3"><div><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-[#88938c]">fragmentos guardados</p><h2 className="mt-1 font-display text-[31px] tracking-[-.035em] text-[#203e40]">{ideas.length === 0 ? 'Ainda em branco' : `${ideas.length} ${ideas.length === 1 ? 'ideia' : 'ideias'}`}</h2></div><span className="font-mono-app text-[10px] uppercase tracking-[.12em] text-[#9ba39c]">sem pressa</span></div>
-      {ideas.length === 0 ? <EmptyIdeas onAdd={() => setIsAdding(true)} /> : <div className="grid gap-3 sm:grid-cols-2">{ideas.map((idea, index) => <article data-testid={`card-idea-${idea.id}`} key={idea.id} className="stagger-in group relative min-h-[150px] rounded-[22px] border border-[#ddd3c6] bg-[#f9f5ed]/80 p-5 transition-transform hover:-translate-y-1" style={{ animationDelay: `${index * 80 + 200}ms` }}><span className="font-mono-app text-[10px] uppercase tracking-[.15em] text-[#e67e61]">{idea.createdAt}</span><p className="mt-5 pr-4 font-display text-[22px] leading-[1.1] tracking-[-.02em] text-[#385655]">{idea.text}</p><button data-testid={`button-remove-idea-${idea.id}`} onClick={() => removeIdea(idea.id)} aria-label="Remover ideia" className="focus-ring absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-lg text-[#b3b2a9] opacity-0 transition-opacity hover:bg-[#f2ddd4] hover:text-[#c8614e] group-hover:opacity-100 focus:opacity-100"><Trash2 size={14} /></button></article>)}</div>}
-      {isAdding ? <form onSubmit={addIdea} className="stagger-in mt-4 rounded-[22px] border border-[#c8bdae] bg-[#fbf8f1] p-4 shadow-[0_8px_20px_rgba(63,71,58,.06)]"><textarea autoFocus data-testid="input-new-idea" value={newIdea} onChange={(e) => setNewIdea(e.target.value)} rows={3} placeholder="Uma frase, uma pergunta, uma faísca..." className="focus-ring w-full resize-none bg-transparent text-[17px] leading-relaxed text-[#203e40] outline-none placeholder:text-[#a5aaa1]" /><div className="mt-3 flex justify-end gap-2"><button data-testid="button-cancel-idea" type="button" onClick={() => { setIsAdding(false); setNewIdea(''); }} className="focus-ring rounded-xl px-3 py-2 text-xs font-semibold text-[#82908a] hover:bg-[#e9e5db]">Cancelar</button><button data-testid="button-save-idea" type="submit" className="soft-button focus-ring rounded-xl bg-[#203e40] px-4 py-2 text-xs font-semibold text-[#f8f3e8] hover:bg-[#315757]">Guardar ideia</button></div></form> : <button data-testid="button-add-idea" onClick={() => setIsAdding(true)} className="focus-ring soft-button mt-5 flex items-center gap-2 rounded-xl px-2 py-2 text-sm font-semibold text-[#e67e61] hover:bg-[#f0e8dc]"><Plus size={17} />Capturar uma ideia</button>}
-    </section>
-  </div>;
+function SalesPage() {
+  const [tab, setTab] = useState('Resumo');
+  return <div><PageHeading eyebrow="Performance comercial" title="Vendas em contexto." subtitle="Do primeiro interesse ao pedido confirmado, uma leitura comercial sem ruído." action={<div className="flex items-center gap-2 rounded-xl border border-[#dbe5e9] bg-[#fbfcfc] px-3 py-2 text-[10px] font-bold text-[#637f8e]"><Filter size={13} />Últimos 30 dias <ChevronDown size={13} /></div>} /><div className="mb-5 flex gap-1 rounded-xl border border-[#dbe5e9] bg-[#f7fafb] p-1">{['Resumo', 'Pedidos', 'Produtos'].map((item) => <button key={item} data-testid={`tab-sales-${item}`} onClick={() => setTab(item)} className={`flex-1 rounded-lg px-3 py-2.5 text-xs font-bold ${tab === item ? 'bg-[#fff] text-[#207e69] shadow-sm' : 'text-[#78909d]'}`}>{item}</button>)}</div>{tab === 'Resumo' && <div className="grid gap-5 lg:grid-cols-[1fr_1.1fr]"><section className="rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-5"><p className="font-mono-app text-[9px] uppercase tracking-[.15em] text-[#7e98a4]">Conversão do funil</p><h2 className="mt-1 text-base font-extrabold text-[#193650]">Cada etapa conta</h2><div className="mt-7 space-y-4">{[['Leads recebidos', '186', '100%', 'bg-[#9fc6df]'], ['Propostas enviadas', '74', '39,8%', 'bg-[#70b8a5]'], ['Pedidos confirmados', '42', '22,6%', 'bg-[#2a8f78]'], ['Clientes recorrentes', '28', '15,1%', 'bg-[#163b58]']].map(([label, value, percent, color]) => <div key={label}><div className="mb-1.5 flex justify-between text-xs"><span className="font-semibold text-[#557283]">{label}</span><span className="font-mono-app text-[10px] text-[#8097a3]">{value} · {percent}</span></div><div className="h-2 rounded-full bg-[#edf1f3]"><div className={`h-full rounded-full ${color}`} style={{ width: percent }} /></div></div>)}</div></section><section className="rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-5"><div className="flex items-center justify-between"><div><p className="font-mono-app text-[9px] uppercase tracking-[.15em] text-[#7e98a4]">Produtos</p><h2 className="mt-1 text-base font-extrabold text-[#193650]">Mais procurados</h2></div><BarChart3 size={18} className="text-[#29977d]" /></div><div className="mt-6 space-y-4">{[['Kit Mesa Serena', '38 pedidos', '82%', '#2eae8c'], ['Caderno Pontilhado A5', '31 pedidos', '66%', '#6cb6a4'], ['Planner Semanal', '24 pedidos', '51%', '#94c9bd'], ['Caneta Duo 0.5', '19 pedidos', '40%', '#b8d8d2']].map(([name, orders, width, color]) => <div key={name}><div className="mb-1.5 flex justify-between"><span className="text-xs font-bold text-[#47657a]">{name}</span><span className="text-[10px] text-[#8aa0aa]">{orders}</span></div><div className="h-1.5 rounded-full bg-[#edf1f3]"><div className="h-full rounded-full" style={{ width, backgroundColor: color }} /></div></div>)}</div></section></div>}{tab === 'Pedidos' && <OrdersTable />}{tab === 'Produtos' && <EmptyState icon={<Package size={22} />} title="Catálogo de demonstração" text="A gestão de produtos será conectada à sua API de inventário." />}</div>;
 }
 
-function EmptyIdeas({ onAdd }: { onAdd: () => void }) {
-  return <div data-testid="empty-ideas" className="rounded-[24px] border border-dashed border-[#c9bda9] bg-[#f8f3e9]/70 px-6 py-14 text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-[45%_55%_52%_48%] bg-[#f2d27b]/70 text-[#806b3c]"><Lightbulb size={23} strokeWidth={1.5} /></div><p className="mt-5 font-display text-[25px] text-[#496560]">O silêncio também é um começo.</p><p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-[#89938b]">Quando uma ideia aparecer, não precisa segurá-la. Traga-a para cá.</p><button data-testid="button-empty-add-idea" onClick={onAdd} className="focus-ring mt-5 rounded-xl bg-[#e67e61] px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#d96f55]">Escrever a primeira</button></div>;
+function OrdersTable() {
+  const [showOpen, setShowOpen] = useState(false);
+  const orders = [['#1048', 'Casa Mimo', 'Kit Mesa Serena', 'R$ 420', 'Pago'], ['#1047', 'Vértice Design', 'Planner Semanal', 'R$ 265', 'Aguardando'], ['#1046', 'Mundo Caderno', 'Caderno A5 · 3 un.', 'R$ 180', 'Pago'], ['#1045', 'Estúdio Norte', 'Kit Mesa Serena', 'R$ 420', 'Em análise']];
+  return <section className="overflow-hidden rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc]"><div className="flex items-center justify-between border-b border-[#e3ecef] p-5"><h2 className="text-sm font-extrabold text-[#193650]">Pedidos recentes</h2><button data-testid="button-filter-orders" onClick={() => setShowOpen((value) => !value)} className="flex items-center gap-1.5 text-[10px] font-bold text-[#2d927a]"><Filter size={13} />{showOpen ? 'Todos' : 'Só em aberto'}</button></div><div className="overflow-x-auto"><div className="min-w-[650px]"><div className="grid grid-cols-[.55fr_1.2fr_1.4fr_1fr_1fr] gap-4 border-b border-[#e9eff1] px-5 py-3 font-mono-app text-[9px] uppercase tracking-[.12em] text-[#8da0aa]"><span>Pedido</span><span>Cliente</span><span>Item</span><span>Valor</span><span>Estado</span></div>{orders.filter((order) => !showOpen || order[4] !== 'Pago').map((order) => <div key={order[0]} data-testid={`row-order-${order[0]}`} className="grid grid-cols-[.55fr_1.2fr_1.4fr_1fr_1fr] items-center gap-4 border-b border-[#e9eff1] px-5 py-4 text-xs last:border-0"><span className="font-mono-app text-[10px] text-[#6b8795]">{order[0]}</span><span className="font-bold text-[#35556a]">{order[1]}</span><span className="text-[#6f8795]">{order[2]}</span><span className="font-bold text-[#35556a]">{order[3]}</span><span className={`w-fit rounded-full px-2 py-1 text-[10px] font-bold ${order[4] === 'Pago' ? 'bg-[#e0f3ed] text-[#27816e]' : 'bg-[#fff0dc] text-[#a36d2e]'}`}>{order[4]}</span></div>)}</div></div></section>;
+}
+
+function FinancePage() {
+  const [tab, setTab] = useState('Visão geral');
+  return <div><PageHeading eyebrow="Controlo financeiro" title="Finanças sem surpresas." subtitle="Veja o movimento do dinheiro, os compromissos próximos e onde a margem está a ser construída." action={<button data-testid="button-export-finance" onClick={() => window.print()} className="soft-button flex items-center gap-2 rounded-xl border border-[#d4e1e6] bg-[#fbfcfc] px-3.5 py-2.5 text-xs font-bold text-[#45657a]"><FileText size={14} />Exportar prévia</button>} /><div className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-[#dbe5e9] bg-[#f7fafb] p-1">{['Visão geral', 'Receitas', 'Despesas', 'Recebíveis'].map((item) => <button key={item} data-testid={`tab-finance-${item}`} onClick={() => setTab(item)} className={`shrink-0 rounded-lg px-4 py-2.5 text-xs font-bold ${tab === item ? 'bg-[#fff] text-[#207e69] shadow-sm' : 'text-[#78909d]'}`}>{item}</button>)}</div>{tab === 'Visão geral' ? <><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Saldo disponível" value="R$ 29.340" change="+6,2%" note="valor de amostra" icon={WalletCards} accent="blue" /><MetricCard label="A receber" value="R$ 6.840" change="12 títulos" trend="neutral" note="3 vencem hoje" icon={ArrowUpRight} /><MetricCard label="A pagar" value="R$ 8.220" change="8 títulos" trend="neutral" note="próximos 14 dias" icon={ArrowDownRight} accent="amber" /><MetricCard label="Margem bruta" value="41,8%" change="+3,8 p.p." note="vs. mês anterior" icon={Percent} /></div><div className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_.85fr]"><CashFlow /><FinancialAlerts /></div></> : <FinanceList tab={tab} />}</div>;
+}
+
+function CashFlow() {
+  return <section className="rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-5"><div className="flex items-start justify-between"><div><p className="font-mono-app text-[9px] uppercase tracking-[.15em] text-[#7e98a4]">Fluxo projetado</p><h2 className="mt-1 text-base font-extrabold text-[#193650]">Entradas & saídas</h2></div><span className="rounded-lg bg-[#e4f3ed] px-2 py-1 text-[10px] font-bold text-[#27816e]">+ R$ 8.120</span></div><div className="mt-6 grid grid-cols-6 items-end gap-2 sm:gap-4">{[['S', 45, 32], ['T', 67, 43], ['Q', 52, 40], ['Q', 81, 48], ['S', 75, 39], ['S', 92, 45]].map(([day, income, out]) => <div key={day as string} className="text-center"><div className="flex h-36 items-end justify-center gap-1.5"><span className="w-2.5 rounded-t bg-[#63bda8]" style={{ height: `${income}%` }} /><span className="w-2.5 rounded-t bg-[#c6d9e2]" style={{ height: `${out}%` }} /></div><p className="mt-2 text-[10px] font-bold text-[#91a3ad]">{day}</p></div>)}</div><div className="mt-4 flex gap-4 border-t border-[#e5edef] pt-4 text-[10px] text-[#78909d]"><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-[#63bda8]" />Entradas</span><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-[#c6d9e2]" />Saídas</span></div></section>;
+}
+
+function FinancialAlerts() {
+  return <section className="rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-5"><div className="flex items-center justify-between"><div><p className="font-mono-app text-[9px] uppercase tracking-[.15em] text-[#7e98a4]">Risco & contexto</p><h2 className="mt-1 text-base font-extrabold text-[#193650]">Alertas financeiras</h2></div><AlertCircle size={18} className="text-[#e29a57]" /></div><div className="mt-5 space-y-3"><div className="rounded-xl border border-[#f2dfc4] bg-[#fff8ec] p-3.5"><p className="flex items-center gap-2 text-xs font-bold text-[#94652d]"><Clock3 size={14} />3 recebíveis vencem hoje</p><p className="mt-1.5 text-[10px] leading-relaxed text-[#a18158]">Valor demonstrativo de R$ 1.280. Confirme o contexto antes de contactar.</p></div><div className="rounded-xl border border-[#d7e7ee] bg-[#f1f7fa] p-3.5"><p className="flex items-center gap-2 text-xs font-bold text-[#426c84]"><TrendingUp size={14} />Margem acima da referência</p><p className="mt-1.5 text-[10px] leading-relaxed text-[#72909d]">A linha Essential contribuiu com 34% da margem no período.</p></div></div></section>;
+}
+
+function FinanceList({ tab }: { tab: string }) {
+  const entries = tab === 'Receitas' ? [['18 jun', 'Pedido #1048 · Casa Mimo', '+ R$ 420', 'Receita']] : tab === 'Despesas' ? [['17 jun', 'Fornecedor Norte & Cia', '- R$ 1.240', 'Despesa'], ['15 jun', 'Logística urbana', '- R$ 380', 'Despesa']] : [['Hoje', 'Casa Mimo · Fatura #882', 'R$ 640', 'Em aberto'], ['19 jun', 'Ateliê Aurora · Fatura #879', 'R$ 2.460', 'Em atraso']]; return <section className="rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc]"><div className="border-b border-[#e3ecef] p-5"><h2 className="text-sm font-extrabold text-[#193650]">{tab}</h2><p className="mt-1 text-xs text-[#8197a2]">Registos de demonstração · API não ligada</p></div>{entries.map((entry, index) => <div key={index} className="flex items-center justify-between gap-3 border-b border-[#e9eff1] px-5 py-4 last:border-0"><div><p className="text-[10px] text-[#91a3ad]">{entry[0]}</p><p className="mt-1 text-xs font-bold text-[#42637a]">{entry[1]}</p></div><div className="text-right"><p className={`text-xs font-extrabold ${entry[2].startsWith('+') ? 'text-[#27816e]' : 'text-[#42637a]'}`}>{entry[2]}</p><span className="text-[10px] text-[#8ba0aa]">{entry[3]}</span></div></div>)}</section>;
+}
+
+function MorePage({ approvals, decideApproval, onLogout }: { approvals: Approval[]; decideApproval: (id: string, status: 'approved' | 'rejected') => void; onLogout: () => void }) {
+  const [section, setSection] = useState('Hub');
+  return <div><PageHeading eyebrow="Centro de operação" title="Mais controlo, no mesmo lugar." subtitle="Stock, fornecedores, alertas e permissões para manter cada decisão no seu devido contexto." /><div className="grid gap-5 lg:grid-cols-[230px_1fr]"><aside className="flex gap-1 overflow-x-auto rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-2 lg:block lg:h-fit lg:space-y-1">{[['Hub', LayoutGrid], ['Stock', Package], ['Fornecedores', Truck], ['Aprovações', FileCheck2], ['Definições', Settings]].map(([label, Icon]) => <button key={label as string} data-testid={`more-tab-${label}`} onClick={() => setSection(label as string)} className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-3 text-xs font-bold lg:w-full ${section === label ? 'bg-[#d9f0eb] text-[#207d69]' : 'text-[#718895] hover:bg-[#f0f5f6]'}`}><Icon size={16} />{label as string}{label === 'Aprovações' && <span className="ml-auto rounded-full bg-[#fff0dc] px-1.5 py-0.5 text-[9px] text-[#a36d2e]">{approvals.filter((a) => a.status === 'pending').length}</span>}</button>)}</aside><div>{section === 'Hub' && <HubCards onSection={setSection} onLogout={onLogout} />}{section === 'Aprovações' && <ApprovalQueue approvals={approvals} decideApproval={decideApproval} />}{section === 'Stock' && <StockView />}{section === 'Fornecedores' && <SuppliersView />}{section === 'Definições' && <SettingsView onLogout={onLogout} />}</div></div></div>;
+}
+
+function HubCards({ onSection, onLogout }: { onSection: (s: string) => void; onLogout: () => void }) {
+  const cards = [['Stock', '7 itens abaixo do mínimo', Package, 'bg-[#fff0d8] text-[#a86d24]'], ['Fornecedores', '4 relações ativas', Truck, 'bg-[#e4eff9] text-[#38739e]'], ['Aprovações', '3 aguardam a sua decisão', FileCheck2, 'bg-[#e1f4ed] text-[#21816c]'], ['Definições', 'Perfil, permissões e conta', Settings, 'bg-[#eeeaf7] text-[#6e5b97]']]; return <div className="grid gap-3 sm:grid-cols-2">{cards.map(([title, detail, Icon, color]) => <button key={title as string} data-testid={`card-more-${title}`} onClick={() => onSection(title as string)} className="card-hover flex items-center gap-4 rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-5 text-left"><span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${color as string}`}><Icon size={19} /></span><span><strong className="block text-sm font-extrabold text-[#193650]">{title as string}</strong><span className="mt-1 block text-[11px] text-[#8198a4]">{detail as string}</span></span><ChevronRight size={16} className="ml-auto text-[#9ab0ba]" /></button>)}<div className="col-span-full mt-2 flex items-center justify-between rounded-2xl border border-[#cde5df] bg-[#e7f5f1] p-5"><div><p className="flex items-center gap-2 text-sm font-extrabold text-[#236e5d]"><ShieldCheck size={17} />Permissões por função</p><p className="mt-1 max-w-lg text-xs leading-relaxed text-[#548277]">Rafael Almeida · Proprietário. Pode consultar tudo e preparar ações, mas cada impacto financeiro exige aprovação explícita.</p></div><button data-testid="button-hub-settings" onClick={() => onSection('Definições')} className="hidden rounded-lg bg-[#267b68] px-3 py-2 text-[10px] font-bold text-white sm:block">Gerir perfil</button></div><button data-testid="button-hub-logout" onClick={onLogout} className="flex items-center gap-2 text-xs font-bold text-[#8a6b73]"><LogOut size={14} />Sair da demonstração</button></div>;
+}
+
+function ApprovalQueue({ approvals, decideApproval }: { approvals: Approval[]; decideApproval: (id: string, status: 'approved' | 'rejected') => void }) {
+  return <section className="rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-mono-app text-[9px] uppercase tracking-[.15em] text-[#7e98a4]">Governança</p><h2 className="mt-1 text-base font-extrabold text-[#193650]">Aprovações pendentes</h2><p className="mt-1 text-xs text-[#8198a4]">O silêncio nunca conta como aprovação.</p></div><span className="flex items-center gap-1.5 rounded-full bg-[#fff0dc] px-2.5 py-1 text-[10px] font-bold text-[#a36d2e]"><ShieldCheck size={13} />Ação manual obrigatória</span></div><div className="mt-6 space-y-3">{approvals.map((item) => <div key={item.id} data-testid={`approval-${item.id}`} className="rounded-xl border border-[#e0e9ec] bg-[#f8fbfb] p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><span className="rounded-md bg-[#e5edf0] px-2 py-1 font-mono-app text-[9px] font-bold text-[#6d8795]">{item.kind}</span>{item.status !== 'pending' && <span className={`rounded-md px-2 py-1 font-mono-app text-[9px] font-bold ${item.status === 'approved' ? 'bg-[#e1f4ed] text-[#27816e]' : 'bg-[#fbe7e5] text-[#b25855]'}`}>{item.status === 'approved' ? 'Aprovada (demo)' : 'Rejeitada (demo)'}</span>}</div><p className="mt-3 text-sm font-extrabold text-[#193650]">{item.title}</p><p className="mt-1 text-xs text-[#7f96a2]">{item.detail}</p></div><p className="text-lg font-extrabold tracking-[-.04em] text-[#31566e]">{item.amount}</p></div>{item.status === 'pending' ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#e0eaed] pt-3"><p className="flex items-center gap-1.5 text-[10px] text-[#8a9ea8]"><AlertCircle size={13} className="text-[#e5a15e]" />Reveja o contexto antes de decidir</p><div className="flex gap-2"><button data-testid={`button-reject-${item.id}`} onClick={() => decideApproval(item.id, 'rejected')} className="rounded-lg border border-[#eccfce] px-3 py-2 text-[10px] font-bold text-[#b25855] hover:bg-[#fdf0ef]">Rejeitar</button><button data-testid={`button-approve-${item.id}`} onClick={() => decideApproval(item.id, 'approved')} className="rounded-lg bg-[#267d69] px-3 py-2 text-[10px] font-bold text-white hover:bg-[#1e6b5a]">Aprovar na demo</button></div></div> : <p className="mt-3 border-t border-[#e0eaed] pt-3 text-[10px] text-[#7b929e]">Registo local desta sessão · nenhuma ação foi enviada.</p>}</div>)}</div></section>;
+}
+
+function StockView() {
+  const [prepared, setPrepared] = useState<string[]>([]);
+  const items = [['Kit Mesa Serena', '4 unidades', 'mínimo 12'], ['Planner Semanal', '7 unidades', 'mínimo 10'], ['Caneta Duo 0.5', '9 unidades', 'mínimo 15']];
+  return <section className="rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-5"><h2 className="text-base font-extrabold text-[#193650]">Stock crítico</h2><p className="mt-1 text-xs text-[#8198a4]">Demonstração de inventário · ligação pendente</p><div className="mt-5 space-y-3">{items.map((item) => <div key={item[0]} className="flex items-center justify-between rounded-xl border border-[#e3ecef] p-3.5"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[#fff0d8] text-[#a86d24]"><Package size={16} /></div><div><p className="text-xs font-bold text-[#42637a]">{item[0]}</p><p className="mt-1 text-[10px] text-[#8ca1aa]">{item[1]} · {item[2]}</p></div></div><button data-testid={`button-restock-${item[0]}`} onClick={() => setPrepared((current) => current.includes(item[0]) ? current.filter((name) => name !== item[0]) : [...current, item[0]])} className={`rounded-lg border px-2.5 py-2 text-[10px] font-bold ${prepared.includes(item[0]) ? 'border-[#cce3dc] bg-[#e1f4ed] text-[#2b927a]' : 'border-[#cce3dc] text-[#2b927a]'}`}>{prepared.includes(item[0]) ? 'Em aprovação' : 'Preparar compra'}</button></div>)}</div></section>;
+}
+function SuppliersView() { return <section className="rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-5"><h2 className="text-base font-extrabold text-[#193650]">Fornecedores</h2><p className="mt-1 text-xs text-[#8198a4]">Relações comerciais de demonstração</p><div className="mt-5 grid gap-3 sm:grid-cols-2">{[['Norte & Cia', 'Materiais · 18 pedidos', 'Em dia'], ['Ponto Log', 'Logística · 9 pedidos', 'Em análise'], ['Papelaria Sul', 'Papel · 12 pedidos', 'Em dia'], ['Caixa Clara', 'Embalagens · 6 pedidos', 'Em dia']].map((supplier) => <div key={supplier[0]} className="rounded-xl border border-[#e3ecef] p-4"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[#e4eff9] text-[#38739e]"><Building2 size={16} /></div><div><p className="text-xs font-bold text-[#42637a]">{supplier[0]}</p><p className="mt-1 text-[10px] text-[#8ca1aa]">{supplier[1]}</p></div></div><span className="mt-4 inline-block rounded-full bg-[#e1f4ed] px-2 py-1 text-[9px] font-bold text-[#27816e]">{supplier[2]}</span></div>)}</div></section>; }
+function SettingsView({ onLogout }: { onLogout: () => void }) { return <section className="rounded-2xl border border-[#dbe5e9] bg-[#fbfcfc] p-5 sm:p-6"><h2 className="text-base font-extrabold text-[#193650]">Perfil & definições</h2><div className="mt-5 flex items-center gap-4 rounded-xl bg-[#f0f6f7] p-4"><div className="grid h-12 w-12 place-items-center rounded-full bg-[#cfe7ea] text-sm font-bold text-[#17445b]">RA</div><div><p className="text-sm font-extrabold text-[#193650]">Rafael Almeida</p><p className="mt-1 text-xs text-[#78909d]">Proprietário · Aurora Studio</p></div><span className="ml-auto rounded-full bg-[#d9f0eb] px-2.5 py-1 text-[10px] font-bold text-[#207d69]">Administrador</span></div><div className="mt-6 divide-y divide-[#e4ecef] rounded-xl border border-[#e1eaed]"><div className="flex items-center justify-between p-4"><div><p className="text-xs font-bold text-[#42637a]">Notificações de negócio</p><p className="mt-1 text-[10px] text-[#8ba0aa]">Alertas de risco e resumos executivos</p></div><span className="h-6 w-10 rounded-full bg-[#2d9c81] p-1"><span className="block h-4 w-4 translate-x-4 rounded-full bg-white" /></span></div><div className="flex items-center justify-between p-4"><div><p className="text-xs font-bold text-[#42637a]">Ambiente conectado</p><p className="mt-1 text-[10px] text-[#8ba0aa]">APIs ainda não ligadas · modo demonstração</p></div><span className="font-mono-app text-[9px] font-bold text-[#bc7950]">OFFLINE</span></div></div><button data-testid="button-settings-logout" onClick={onLogout} className="mt-5 flex items-center gap-2 text-xs font-bold text-[#b25855]"><LogOut size={14} />Sair da demonstração</button></section>; }
+
+function LoginPage({ onLogin }: { onLogin: () => void }) {
+  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [recoverySent, setRecoverySent] = useState(false);
+  const submit = (event: FormEvent) => { event.preventDefault(); onLogin(); };
+  return <div className="flex min-h-[100dvh] bg-[#102a43]"><div className="relative hidden flex-1 overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16"><div className="absolute -right-32 top-16 h-[520px] w-[520px] rounded-full border-[70px] border-[#75dec4]/10" /><div className="absolute bottom-[-180px] left-[-120px] h-[560px] w-[560px] rounded-full border-[50px] border-[#78a9ce]/10" /><div className="relative"><Logo /></div><div className="relative max-w-xl"><p className="font-mono-app text-[10px] uppercase tracking-[.2em] text-[#75dec4]">Sistema operativo para negócios</p><h1 className="mt-5 text-[clamp(3.5rem,6vw,6.2rem)] font-extrabold leading-[.92] tracking-[-.07em] text-[#eff8f5]">Inteligência<br /><span className="font-serif-app font-normal italic text-[#75dec4]">que move</span><br />o seu negócio.</h1><p className="mt-8 max-w-md text-base leading-relaxed text-[#9bb8c1]">Uma visão mais clara para decidir melhor, todos os dias.</p></div><div className="relative flex items-center justify-between text-[10px] text-[#6f8da0]"><span>NEXORA AI · prévia do produto</span><span>Confiança por design</span></div></div><div className="flex w-full items-center bg-[#f3f8f9] px-5 py-10 sm:px-10 lg:w-[48%] lg:px-16"><div className="mx-auto w-full max-w-[420px]"><div className="lg:hidden"><Logo compact /></div><div className="mt-12 lg:mt-0"><p className="font-mono-app text-[10px] uppercase tracking-[.18em] text-[#229278]">Bem-vindo de volta</p><h2 className="mt-3 text-3xl font-extrabold tracking-[-.06em] text-[#142d46]">Entre na sua operação.</h2><p className="mt-3 text-sm leading-relaxed text-[#668095]">Aceda à visão executiva da sua empresa.</p></div><form onSubmit={submit} className="mt-9 space-y-4"><label className="block"><span className="mb-2 block text-xs font-bold text-[#49677d]">Email profissional</span><input data-testid="input-login-email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="nome@empresa.pt" className="focus-ring w-full rounded-xl border border-[#cfdfe4] bg-[#fff] px-4 py-3.5 text-sm text-[#193650] outline-none placeholder:text-[#a4b3bb]" /></label><label className="block"><span className="mb-2 block text-xs font-bold text-[#49677d]">Palavra-passe</span><input data-testid="input-login-password" type="password" required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Introduza a sua palavra-passe" className="focus-ring w-full rounded-xl border border-[#cfdfe4] bg-[#fff] px-4 py-3.5 text-sm text-[#193650] outline-none placeholder:text-[#a4b3bb]" /></label><div className="flex justify-end"><button data-testid="button-recover-password" type="button" onClick={() => setRecoverySent(true)} className="text-xs font-bold text-[#278c75] hover:underline">Recuperar acesso</button></div>{recoverySent && <p data-testid="status-recovery" className="text-[10px] font-semibold text-[#278c75]">Pedido de recuperação preparado para o ambiente de demonstração.</p>}<button data-testid="button-login" type="submit" className="soft-button flex w-full items-center justify-center gap-2 rounded-xl bg-[#163b58] py-3.5 text-sm font-bold text-white hover:bg-[#1c496b]">Entrar na demonstração <ChevronRight size={16} /></button></form><div className="my-7 flex items-center gap-3"><span className="h-px flex-1 bg-[#dbe5e9]" /><span className="text-[10px] text-[#8da2ab]">ou</span><span className="h-px flex-1 bg-[#dbe5e9]" /></div><button data-testid="button-create-account" onClick={onLogin} className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#cbdde2] bg-[#fff] py-3 text-xs font-bold text-[#42637a] hover:border-[#8dcaba]"><Plus size={15} />Criar conta</button><p className="mt-8 flex items-start gap-2 text-[10px] leading-relaxed text-[#8da1aa]"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-[#38a88c]" />Este é um ambiente de demonstração. Não introduza credenciais reais.</p></div></div></div>;
+}
+
+function EmptyState({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+  return <div data-testid="empty-state" className="flex flex-col items-center justify-center px-5 py-20 text-center"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#e6f2ef] text-[#2e957c]">{icon}</div><h3 className="mt-4 text-base font-extrabold text-[#31556b]">{title}</h3><p className="mt-2 max-w-xs text-xs leading-relaxed text-[#8ba0aa]">{text}</p></div>;
 }
 
 export default App;

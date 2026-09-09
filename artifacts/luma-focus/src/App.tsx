@@ -219,6 +219,14 @@ function IntelligencePage() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [conversationId] = useState(() => {
+    const existing = window.sessionStorage.getItem("nexora-conversation-id");
+    if (existing) return existing;
+    const created = `nexora-${crypto.randomUUID()}`;
+    window.sessionStorage.setItem("nexora-conversation-id", created);
+    return created;
+  });
+  const tenantId = window.localStorage.getItem("nexora-tenant-id") ?? "demo-tenant";
   const prompts = ["Como está a saúde financeira?", "O que está a crescer este mês?", "Quais clientes merecem atenção?", "Onde posso proteger a margem?"];
   const submit = async (event?: FormEvent, preset?: string) => {
     event?.preventDefault();
@@ -229,7 +237,7 @@ function IntelligencePage() {
     setSending(true);
     setError("");
     try {
-      const result = await apiRequest<Intelligence>("/intelligence", { method: "POST", body: JSON.stringify({ question }) });
+      const result = await apiRequest<Intelligence>("/intelligence", { method: "POST", body: JSON.stringify({ message: question, conversationId, tenantId }) });
       setMessages((items) => [...items, { from: "ai", text: result.data.answer, meta: `Resposta real · ${result.provider ?? "Orquestrador Central"}` }]);
     } catch (cause) {
       setError(errorText(cause instanceof ApiRequestError ? cause : undefined) || "O Orquestrador Central está indisponível.");

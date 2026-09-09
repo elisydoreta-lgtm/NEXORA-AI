@@ -31,6 +31,17 @@ function bearerHeader(name: string) {
   return token ? { authorization: `Bearer ${token}` } : {};
 }
 
+function customHeader(headerNameEnv: string, tokenEnv: string) {
+  const headerName = process.env[headerNameEnv]?.trim();
+  const token = process.env[tokenEnv]?.trim();
+  if (!headerName || !token) {
+    throw new IntegrationUnavailableError(
+      "A autenticação do Orquestrador NEXORA ainda não está configurada no servidor.",
+    );
+  }
+  return { [headerName]: token };
+}
+
 async function readBody(response: globalThis.Response) {
   const text = await response.text();
   if (!text) return null;
@@ -47,6 +58,7 @@ async function callPrivateService(
   path: string,
   method: HttpMethod,
   body?: unknown,
+  customHeaderNameEnv?: string,
 ) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
@@ -57,7 +69,9 @@ async function callPrivateService(
       headers: {
         accept: "application/json",
         ...(body === undefined ? {} : { "content-type": "application/json" }),
-        ...bearerHeader(tokenEnv),
+        ...(customHeaderNameEnv
+          ? customHeader(customHeaderNameEnv, tokenEnv)
+          : bearerHeader(tokenEnv)),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
@@ -152,11 +166,12 @@ export async function proxyIntelligence(
 ) {
   try {
     const data = await callPrivateService(
-      "N8N_ORCHESTRATOR_URL",
-      "N8N_ORCHESTRATOR_TOKEN",
+      "NEXORA_ORCHESTRATOR_URL",
+      "NEXORA_ORCHESTRATOR_API_KEY",
       "",
       "POST",
       body,
+      "NEXORA_ORCHESTRATOR_HEADER_NAME",
     );
     const candidate =
       typeof data === "object" && data !== null

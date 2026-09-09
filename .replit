@@ -18,3 +18,9 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+NEXORA_ORCHESTRATOR_HEADER_NAME = "X-NEXORA-API-KEY"
+NEXORA_ORCHESTRATOR_URL = "https://elisydoreta.app.n8n.cloud/webhook/nexora/chat"

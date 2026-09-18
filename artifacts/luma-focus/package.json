@@ -1,4 +1,6 @@
-{
+"@capacitor/android": "^8.0.0",
+"@capacitor/cli": "^8.0.0",
+"@capacitor/core": "^8.0.0",{
   "name": "@workspace/luma-focus",
   "version": "0.0.0",
   "private": true,
@@ -72,6 +74,8 @@
     "vaul": "^1.1.2",
     "vite": "catalog:",
     "wouter": "^3.3.5",
-    "zod": "catalog:"
+    "zod": "catalog:","@capacitor/android": "^8.0.0",
+"@capacitor/cli": "^8.0.0",
+"@capacitor/core": "^8.0.0"
   }
 }
